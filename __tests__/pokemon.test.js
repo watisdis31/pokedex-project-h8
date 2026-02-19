@@ -9,37 +9,20 @@ const axios = require("axios");
 const { fetchPokemonCard } = require("../helpers/tcgApi");
 const { getGeminiRecommendation } = require("../helpers/gemini");
 
-const { test, expect, describe } = require("@jest/globals");
-
 describe("Pokemon Routes", () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
   describe("GET /pokemon", () => {
     test("success get pokemon list", async () => {
-      axios.get
-        .mockResolvedValueOnce({
-          data: {
-            results: [
-              { url: "https://pokeapi.co/api/v2/pokemon/1/" },
-              { url: "https://pokeapi.co/api/v2/pokemon/2/" },
-            ],
-          },
-        })
-        .mockResolvedValueOnce({
-          data: {
-            id: 1,
-            name: "bulbasaur",
-            sprites: { front_default: "img1" },
-          },
-        })
-        .mockResolvedValueOnce({
-          data: {
-            id: 2,
-            name: "ivysaur",
-            sprites: { front_default: "img2" },
-          },
-        });
+      axios.get.mockResolvedValueOnce({
+        data: {
+          results: [
+            { name: "bulbasaur", url: "https://pokeapi.co/api/v2/pokemon/1/" },
+            { name: "ivysaur", url: "https://pokeapi.co/api/v2/pokemon/2/" },
+          ],
+        },
+      });
 
       const response = await request(app).get("/pokemon");
 
@@ -47,22 +30,17 @@ describe("Pokemon Routes", () => {
       expect(response.body).toHaveProperty("currentPage", 1);
       expect(response.body).toHaveProperty("totalData", 2);
       expect(response.body.data.length).toBe(2);
+      expect(response.body.data[0]).toHaveProperty("sprite");
     });
 
     test("search filter works", async () => {
-      axios.get
-        .mockResolvedValueOnce({
-          data: {
-            results: [{ url: "https://pokeapi.co/api/v2/pokemon/25/" }],
-          },
-        })
-        .mockResolvedValueOnce({
-          data: {
-            id: 25,
-            name: "pikachu",
-            sprites: { front_default: "img" },
-          },
-        });
+      axios.get.mockResolvedValueOnce({
+        data: {
+          results: [
+            { name: "pikachu", url: "https://pokeapi.co/api/v2/pokemon/25/" },
+          ],
+        },
+      });
 
       const response = await request(app).get("/pokemon?search=pika");
 
@@ -71,29 +49,14 @@ describe("Pokemon Routes", () => {
     });
 
     test("pagination works", async () => {
-      axios.get
-        .mockResolvedValueOnce({
-          data: {
-            results: [
-              { url: "https://pokeapi.co/api/v2/pokemon/1/" },
-              { url: "https://pokeapi.co/api/v2/pokemon/2/" },
-            ],
-          },
-        })
-        .mockResolvedValueOnce({
-          data: {
-            id: 1,
-            name: "a",
-            sprites: { front_default: "" },
-          },
-        })
-        .mockResolvedValueOnce({
-          data: {
-            id: 2,
-            name: "b",
-            sprites: { front_default: "" },
-          },
-        });
+      axios.get.mockResolvedValueOnce({
+        data: {
+          results: [
+            { name: "a", url: "https://pokeapi.co/api/v2/pokemon/1/" },
+            { name: "b", url: "https://pokeapi.co/api/v2/pokemon/2/" },
+          ],
+        },
+      });
 
       const response = await request(app).get("/pokemon?page=1&limit=1");
 
@@ -104,11 +67,13 @@ describe("Pokemon Routes", () => {
 
   describe("GET /pokemon/:id", () => {
     test("success get pokemon detail", async () => {
+      // pokemon
       axios.get
         .mockResolvedValueOnce({
           data: {
             id: 25,
             name: "pikachu",
+            sprites: { front_default: "img" },
             stats: [{ stat: { name: "speed" }, base_stat: 90 }],
             types: [{ type: { name: "electric" } }],
             forms: [],
@@ -121,17 +86,15 @@ describe("Pokemon Routes", () => {
             varieties: [],
           },
         })
-        // evolution chain
+        // evolution
         .mockResolvedValueOnce({
           data: {
             chain: {
-              species: { name: "pichu" },
-              evolves_to: [
-                {
-                  species: { name: "pikachu" },
-                  evolves_to: [],
-                },
-              ],
+              species: {
+                name: "pikachu",
+                url: "https://pokeapi.co/api/v2/pokemon-species/25/",
+              },
+              evolves_to: [],
             },
           },
         });
@@ -156,7 +119,7 @@ describe("Pokemon Routes", () => {
       expect(response.body).toHaveProperty("id", 25);
       expect(response.body).toHaveProperty("card");
       expect(response.body).toHaveProperty("recommendation");
-      expect(response.body.evolutionLine).toContain("pikachu");
+      expect(response.body.evolutionLine[0]).toHaveProperty("name", "pikachu");
     });
 
     test("tcg fail should not break response", async () => {
@@ -165,6 +128,7 @@ describe("Pokemon Routes", () => {
           data: {
             id: 25,
             name: "pikachu",
+            sprites: { front_default: "img" },
             stats: [],
             types: [],
             forms: [],
@@ -180,7 +144,10 @@ describe("Pokemon Routes", () => {
         .mockResolvedValueOnce({
           data: {
             chain: {
-              species: { name: "pikachu" },
+              species: {
+                name: "pikachu",
+                url: "https://pokeapi.co/api/v2/pokemon-species/25/",
+              },
               evolves_to: [],
             },
           },

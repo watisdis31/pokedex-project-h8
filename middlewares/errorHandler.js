@@ -16,6 +16,10 @@ function errorHandler(err, req, res, next) {
       res.status(401).json({ message: "Unauthorized" });
       break;
 
+    case "UnauthorizedLogin":
+      res.status(401).json({ message: "Invalid email/password" });
+      break;
+
     case "JsonWebTokenError":
     case "TokenExpiredError":
       res.status(401).json({ message: "Unauthorized" });

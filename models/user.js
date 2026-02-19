@@ -21,8 +21,12 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
         unique: true,
         validate: {
-          notNull: true,
-          notEmpty: true,
+          notNull: {
+            msg: 'Email is required'
+          },
+          notEmpty: {
+            msg: 'Email is required'
+          },
           isEmail: true,
         },
       },
@@ -35,8 +39,12 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
         unique: true,
         validate: {
-          notNull: true,
-          notEmpty: true,
+          notNull: {
+            msg: 'Username is required'
+          },
+          notEmpty: {
+            msg: 'Username is required'
+          },
         },
       },
       googleId: {

@@ -26,10 +26,10 @@ class AuthController {
       const { email, password } = req.body;
 
       const user = await User.findOne({ where: { email } });
-      if (!user) throw { name: "Unauthorized" };
+      if (!user) throw { name: "UnauthorizedLogin" };
 
       const valid = comparePassword(password, user.password);
-      if (!valid) throw { name: "Unauthorized" };
+      if (!valid) throw { name: "UnauthorizedLogin" };
 
       const access_token = signToken({ id: user.id });
 

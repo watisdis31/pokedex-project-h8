@@ -10,7 +10,7 @@ class PokemonController {
         limit = 20,
         generation,
         type,
-        search,
+        search = "",
         sort = "id",
         order = "ASC",
       } = req.query;
@@ -21,66 +21,70 @@ class PokemonController {
       let baseList = [];
 
       if (generation) {
-        const genRes = await axios.get(
+        const { data } = await axios.get(
           `https://pokeapi.co/api/v2/generation/${generation}`,
         );
 
-        baseList = genRes.data.pokemon_species.map((species) => {
+        baseList = data.pokemon_species.map((species) => {
           const urlParts = species.url.split("/").filter(Boolean);
-          const id = urlParts[urlParts.length - 1];
+          const id = Number(urlParts[urlParts.length - 1]);
 
-          return { id: Number(id) };
+          return {
+            id,
+            name: species.name,
+          };
         });
       }
 
       if (type) {
-        const typeRes = await axios.get(
-          `https://pokeapi.co/api/v2/type/${type}`,
-        );
+        const types = type.split(",");
 
-        const typeList = typeRes.data.pokemon.map((p) => {
-          const urlParts = p.pokemon.url.split("/").filter(Boolean);
-          const id = urlParts[urlParts.length - 1];
+        let typeResults = [];
 
-          return { id: Number(id) };
-        });
+        for (let t of types) {
+          const { data } = await axios.get(
+            `https://pokeapi.co/api/v2/type/${t}`,
+          );
 
-        if (generation) {
-          const genIds = baseList.map((p) => p.id);
-          baseList = typeList.filter((p) => genIds.includes(p.id));
-        } else {
-          baseList = typeList;
+          const ids = data.pokemon.map((p) => {
+            const urlParts = p.pokemon.url.split("/").filter(Boolean);
+            return Number(urlParts[urlParts.length - 1]);
+          });
+
+          typeResults.push(ids);
         }
+
+        let finalTypeIds = typeResults[0];
+
+        if (typeResults.length > 1) {
+          finalTypeIds = typeResults.reduce((a, b) =>
+            a.filter((id) => b.includes(id)),
+          );
+        }
+
+        baseList = finalTypeIds.map((id) => ({
+          id,
+          name: "",
+        }));
       }
 
       if (!generation && !type) {
-        const defaultRes = await axios.get(
-          `https://pokeapi.co/api/v2/pokemon?limit=200`,
+        const { data } = await axios.get(
+          `https://pokeapi.co/api/v2/pokemon?limit=100000&offset=0`,
         );
 
-        baseList = defaultRes.data.results.map((p) => {
+        baseList = data.results.map((p) => {
           const urlParts = p.url.split("/").filter(Boolean);
-          const id = urlParts[urlParts.length - 1];
+          const id = Number(urlParts[urlParts.length - 1]);
 
-          return { id: Number(id) };
+          return {
+            id,
+            name: p.name,
+          };
         });
       }
 
-      const detailedList = await Promise.all(
-        baseList.map(async (p) => {
-          const detail = await axios.get(
-            `https://pokeapi.co/api/v2/pokemon/${p.id}`,
-          );
-
-          return {
-            id: detail.data.id,
-            name: detail.data.name,
-            sprite: detail.data.sprites.front_default,
-          };
-        }),
-      );
-
-      let filteredList = detailedList;
+      let filteredList = baseList;
 
       if (search) {
         filteredList = filteredList.filter((p) =>
@@ -90,22 +94,30 @@ class PokemonController {
 
       filteredList.sort((a, b) => {
         if (sort === "name") {
-          return order === "desc"
+          return order.toUpperCase() === "DESC"
             ? b.name.localeCompare(a.name)
             : a.name.localeCompare(b.name);
         }
 
-        return order === "desc" ? b.id - a.id : a.id - b.id;
+        return order.toUpperCase() === "DESC" ? b.id - a.id : a.id - b.id;
       });
 
+      const totalData = filteredList.length;
       const start = (page - 1) * limit;
       const end = start + limit;
+
       const paginated = filteredList.slice(start, end);
+
+      const finalData = paginated.map((p) => ({
+        id: p.id,
+        name: p.name,
+        sprite: `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${p.id}.png`,
+      }));
 
       res.status(200).json({
         currentPage: page,
-        totalData: filteredList.length,
-        data: paginated,
+        totalData,
+        data: finalData,
       });
     } catch (error) {
       next(error);
@@ -129,28 +141,38 @@ class PokemonController {
       const { data: evolution } = await axios.get(species.evolution_chain.url);
 
       const extractEvolution = (chain, result = []) => {
-        result.push(chain.species.name);
-        if (chain.evolves_to.length > 0) {
+        result.push({
+          name: chain.species.name,
+          sprite: `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${chain.species.url.split("/")[6]}.png`,
+        });
+        if (chain.evolves_to.length > 0)
           extractEvolution(chain.evolves_to[0], result);
-        }
         return result;
       };
-
       const evolutionLine = extractEvolution(evolution.chain);
 
       const megaForms = [
         ...(pokemon.forms
           ?.filter((f) => f.name.includes("mega"))
-          ?.map((f) => f.name) || []),
+          ?.map((f) => ({
+            name: f.name,
+            sprite: `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${f.url.split("/")[6]}.png`,
+          })) || []),
         ...(species.varieties
           ?.filter((v) => v.pokemon.name.includes("mega"))
-          ?.map((v) => v.pokemon.name) || []),
+          ?.map((v) => ({
+            name: v.pokemon.name,
+            sprite: `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${v.pokemon.url.split("/")[6]}.png`,
+          })) || []),
       ];
 
       const gigantamaxForms = [
         ...(species.varieties
           ?.filter((v) => v.pokemon.name.includes("gmax"))
-          ?.map((v) => v.pokemon.name) || []),
+          ?.map((v) => ({
+            name: v.pokemon.name,
+            sprite: `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${v.pokemon.url.split("/")[6]}.png`,
+          })) || []),
       ];
 
       const [tcgResult, geminiResult] = await Promise.allSettled([
@@ -184,6 +206,9 @@ class PokemonController {
       res.status(200).json({
         id: pokemon.id,
         name: pokemon.name,
+        sprites: {
+          front_default: pokemon.sprites.front_default,
+        },
         types: pokemon.types.map((t) => t.type.name),
         stats,
         evolutionLine,
