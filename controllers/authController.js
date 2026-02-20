@@ -97,15 +97,15 @@ class AuthController {
         headers: { Authorization: `token ${accessToken}` },
       });
 
-      let user = await User.findOne({
-        where: { email: githubUser.data.email },
-      });
+      const email =
+        githubUser.data.email || `github_${githubUser.data.id}@pokedex.com`;
+
+      let user = await User.findOne({ where: { email } });
 
       if (!user) {
         user = await User.create({
           username: githubUser.data.login,
-          email:
-            githubUser.data.email || `github_${githubUser.data.id}@pokedex.com`,
+          email,
           password: null,
         });
       }
