@@ -3,6 +3,7 @@ const { comparePassword } = require("../helpers/bcrypt");
 const { signToken } = require("../helpers/jwt");
 const { User } = require("../models");
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+const axios = require("axios");
 
 class AuthController {
   static async register(req, res, next) {
@@ -44,8 +45,8 @@ class AuthController {
       const { googleToken } = req.body || {};
 
       if (!googleToken) {
-      throw { name: "GoogleBadRequest" };
-    }
+        throw { name: "GoogleBadRequest" };
+      }
 
       const ticket = await client.verifyIdToken({
         idToken: googleToken,
@@ -62,6 +63,50 @@ class AuthController {
           email,
           username: email.split("@")[0],
           googleId: sub,
+        });
+      }
+
+      const access_token = signToken({ id: user.id });
+
+      res.status(200).json({ access_token });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async githubLogin(req, res, next) {
+    try {
+      const { code } = req.body;
+
+      if (!code) throw { name: "BadRequestGithub" };
+
+      const tokenResponse = await axios.post(
+        "https://github.com/login/oauth/access_token",
+        {
+          client_id: process.env.GITHUB_CLIENT_ID,
+          client_secret: process.env.GITHUB_CLIENT_SECRET,
+          code,
+        },
+        { headers: { Accept: "application/json" } },
+      );
+
+      const accessToken = tokenResponse.data.access_token;
+      if (!accessToken) throw { name: "UnauthorizedLogin" };
+
+      const githubUser = await axios.get("https://api.github.com/user", {
+        headers: { Authorization: `token ${accessToken}` },
+      });
+
+      let user = await User.findOne({
+        where: { email: githubUser.data.email },
+      });
+
+      if (!user) {
+        user = await User.create({
+          username: githubUser.data.login,
+          email:
+            githubUser.data.email || `github_${githubUser.data.id}@pokedex.com`,
+          password: null,
         });
       }
 

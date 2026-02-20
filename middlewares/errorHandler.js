@@ -33,6 +33,10 @@ function errorHandler(err, req, res, next) {
       res.status(400).json({ message: "pokemonId is required" });
       break;
 
+    case "BadRequestGithub":
+      res.status(400).json({ message: "No code provided" });
+      break;
+
     case "GoogleBadRequest":
       res.status(400).json({ message: "googleToken is required" });
       break;
